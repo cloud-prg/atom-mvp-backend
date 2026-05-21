@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE="${ACR_IMAGE:-registry.cn-hangzhou.aliyuncs.com/cloud_prg_hub/atom_mvp:feature-repo-init}"
+IMAGE="${ACR_IMAGE:-registry.cn-hangzhou.aliyuncs.com/cloud_prg_hub/atom-mvp-backend:feature-repo-init}"
 PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 REGISTRY="${IMAGE%%/*}"
 
