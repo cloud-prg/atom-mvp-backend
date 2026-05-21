@@ -299,6 +299,67 @@ def test_conversation_and_message_crud(client, auth_headers):
     assert len(messages.json()) == 1
 
 
+def test_update_conversation_title(client, auth_headers):
+    created = client.post("/api/conversations", json={"title": "Planning"}, headers=auth_headers)
+    assert created.status_code == 200
+    conversation_id = created.json()["id"]
+
+    renamed = client.patch(
+        f"/api/conversations/{conversation_id}",
+        json={"title": "  Product sync  "},
+        headers=auth_headers,
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "Product sync"
+
+    fetched = client.get(f"/api/conversations/{conversation_id}", headers=auth_headers)
+    assert fetched.status_code == 200
+    assert fetched.json()["title"] == "Product sync"
+
+
+def test_update_conversation_title_rejects_other_user(client, auth_headers, db_session):
+    created = client.post("/api/conversations", json={"title": "Planning"}, headers=auth_headers)
+    assert created.status_code == 200
+    conversation_id = created.json()["id"]
+
+    other_login = email_login(client, db_session, "other-title-user@gmail.com")
+    assert other_login.status_code == 200
+    other_headers = {"Authorization": f"Bearer {other_login.json()['token']}"}
+    renamed = client.patch(
+        f"/api/conversations/{conversation_id}",
+        json={"title": "Other title"},
+        headers=other_headers,
+    )
+
+    assert renamed.status_code == 404
+    assert renamed.json()["detail"] == "Conversation not found"
+
+
+def test_clear_conversation_context_removes_messages_but_keeps_conversation(client, auth_headers):
+    created = client.post("/api/conversations", json={"title": "Planning"}, headers=auth_headers)
+    assert created.status_code == 200
+    conversation_id = created.json()["id"]
+
+    for index in range(2):
+        message = client.post(
+            f"/api/conversations/{conversation_id}/messages",
+            json={"role": "user", "content": f"hello {index}", "client_message_id": f"clear-{index}"},
+            headers=auth_headers,
+        )
+        assert message.status_code == 200
+
+    cleared = client.post(f"/api/conversations/{conversation_id}/clear-context", headers=auth_headers)
+    assert cleared.status_code == 200
+    assert cleared.json() == {"ok": True}
+
+    conversation = client.get(f"/api/conversations/{conversation_id}", headers=auth_headers)
+    assert conversation.status_code == 200
+
+    messages = client.get(f"/api/conversations/{conversation_id}/messages", headers=auth_headers)
+    assert messages.status_code == 200
+    assert messages.json() == []
+
+
 def test_mock_search_fallback(client, auth_headers):
     response = client.post(
         "/api/search",

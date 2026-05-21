@@ -4,14 +4,16 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Message, User
-from app.schemas import ConversationCreate, ConversationOut, MessageCreate, MessageOut
+from app.schemas import ConversationCreate, ConversationOut, ConversationUpdate, MessageCreate, MessageOut
 from app.services.conversation_service import (
+    clear_conversation_context,
     create_conversation,
     delete_conversation,
     get_conversation_for_user,
     list_conversations,
     list_messages,
     touch_conversation,
+    update_conversation_title,
 )
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -39,12 +41,34 @@ def show(conversation_id: str, user: User = Depends(get_current_user), db: Sessi
     return conversation
 
 
+@router.patch("/{conversation_id}", response_model=ConversationOut)
+def update(
+    conversation_id: str,
+    payload: ConversationUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conversation = get_conversation_for_user(db, user, conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return update_conversation_title(db, conversation, payload.title)
+
+
 @router.delete("/{conversation_id}")
 def destroy(conversation_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     conversation = get_conversation_for_user(db, user, conversation_id)
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     delete_conversation(db, conversation)
+    return {"ok": True}
+
+
+@router.post("/{conversation_id}/clear-context")
+def clear_context(conversation_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = get_conversation_for_user(db, user, conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    clear_conversation_context(db, conversation)
     return {"ok": True}
 
 
@@ -78,4 +102,3 @@ def create_message(
     db.commit()
     db.refresh(message)
     return message
-

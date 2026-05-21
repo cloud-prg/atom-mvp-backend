@@ -1,7 +1,7 @@
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
-from app.models import Conversation, Message, User, utc_now
+from app.models import Conversation, Message, SearchResult, SearchRun, User, utc_now
 
 
 def list_conversations(db: Session, user: User) -> list[Conversation]:
@@ -33,6 +33,25 @@ def delete_conversation(db: Session, conversation: Conversation) -> None:
     db.commit()
 
 
+def update_conversation_title(db: Session, conversation: Conversation, title: str) -> Conversation:
+    conversation.title = title.strip() or "New chat"
+    conversation.updated_at = utc_now()
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+    return conversation
+
+
+def clear_conversation_context(db: Session, conversation: Conversation) -> None:
+    search_run_ids = select(SearchRun.id).where(SearchRun.conversation_id == conversation.id)
+    db.execute(delete(SearchResult).where(SearchResult.search_run_id.in_(search_run_ids)))
+    db.execute(delete(SearchRun).where(SearchRun.conversation_id == conversation.id))
+    db.execute(delete(Message).where(Message.conversation_id == conversation.id))
+    conversation.updated_at = utc_now()
+    db.add(conversation)
+    db.commit()
+
+
 def list_messages(db: Session, conversation: Conversation) -> list[Message]:
     return list(
         db.scalars(
@@ -55,4 +74,3 @@ def touch_conversation(db: Session, conversation: Conversation, first_user_conte
         conversation.title = title_from_content(first_user_content)
     conversation.updated_at = utc_now()
     db.add(conversation)
-
