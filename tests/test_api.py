@@ -1,6 +1,7 @@
 from app.routers import auth as auth_router
 from app.models import EmailVerificationCode, User, UserQuota
 from app.services.auth_service import create_oauth_state, hash_verification_code
+from app.services import search_provider
 
 
 def admin_login(client):
@@ -371,6 +372,145 @@ def test_mock_search_fallback(client, auth_headers):
     assert body["provider"] == "mock"
     assert body["status"] == "completed"
     assert len(body["results"]) >= 1
+
+
+def test_search_accepts_network_search_flag(client, auth_headers):
+    response = client.post(
+        "/api/search",
+        json={"query": "evergreen query", "mode": "off", "network_search": True},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provider"] == "mock"
+    assert body["status"] == "completed"
+
+
+def test_chat_stream_accepts_network_search_flag(client, auth_headers):
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"content": "evergreen query", "client_message_id": "network-search-1", "network_search": True},
+        headers=auth_headers,
+    ) as response:
+        assert response.status_code == 200
+        text = "".join(response.iter_text())
+
+    assert "search.completed" in text
+    assert '"provider": "mock"' in text
+
+
+def test_chat_stream_with_attachments_parses_text_files(client, auth_headers):
+    with client.stream(
+        "POST",
+        "/api/chat/stream-with-attachments",
+        data={"content": "请总结附件", "client_message_id": "attachment-1", "search_mode": "off"},
+        files={"files": ("notes.txt", b"Quarterly revenue grew 18%.", "text/plain")},
+        headers=auth_headers,
+    ) as response:
+        assert response.status_code == 200
+        text = "".join(response.iter_text())
+
+    assert "attachments.parsed" in text
+    assert "notes.txt" in text
+    assert "Quarterly revenue grew 18%" in text
+    assert "message.completed" in text
+
+
+def test_chat_stream_with_attachments_injects_content_into_prompt(client, auth_headers, monkeypatch):
+    captured = {}
+
+    async def fake_stream_chat_response(prompt, search_results):
+        captured["prompt"] = prompt
+        yield "ok"
+
+    monkeypatch.setattr("app.services.chat_service.stream_chat_response", fake_stream_chat_response)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream-with-attachments",
+        data={"content": "基于附件回答", "client_message_id": "attachment-2", "search_mode": "off"},
+        files={"files": ("metrics.csv", b"name,value\nsales,42\n", "text/csv")},
+        headers=auth_headers,
+    ) as response:
+        assert response.status_code == 200
+        assert "message.completed" in "".join(response.iter_text())
+
+    assert "基于附件回答" in captured["prompt"]
+    assert "metrics.csv" in captured["prompt"]
+    assert "sales,42" in captured["prompt"]
+
+
+def test_chat_stream_accepts_frontend_attachment_contract(client, auth_headers, monkeypatch):
+    captured = {}
+
+    async def fake_stream_chat_response(prompt, search_results):
+        captured["prompt"] = prompt
+        yield "ok"
+
+    monkeypatch.setattr("app.services.chat_service.stream_chat_response", fake_stream_chat_response)
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        data={"content": "基于附件回答", "client_message_id": "attachment-frontend-1", "search_mode": "off"},
+        files={"attachments": ("frontend-notes.txt", b"Frontend contract attachment text.", "text/plain")},
+        headers=auth_headers,
+    ) as response:
+        assert response.status_code == 200
+        text = "".join(response.iter_text())
+
+    assert "attachments.parsed" in text
+    assert "message.completed" in text
+    assert "frontend-notes.txt" in captured["prompt"]
+    assert "Frontend contract attachment text." in captured["prompt"]
+
+
+async def test_exa_search_provider_parses_real_results(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "title": "Fresh source",
+                        "url": "https://example.com/fresh",
+                        "text": "Useful current context from Exa.",
+                        "publishedDate": "2026-05-20T00:00:00.000Z",
+                    }
+                ]
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, headers, json):
+            assert url == "https://api.exa.ai/search"
+            assert headers["x-api-key"] == "exa-test-key"
+            assert json["query"] == "latest market update"
+            assert json["contents"]["text"] is True
+            return FakeResponse()
+
+    monkeypatch.setattr(search_provider.settings, "demo_mode", False, raising=False)
+    monkeypatch.setattr(search_provider.settings, "exa_api_key", "exa-test-key", raising=False)
+    monkeypatch.setattr(search_provider.httpx, "AsyncClient", FakeClient)
+
+    provider, status, results = await search_provider.search("latest market update", "force")
+
+    assert provider == "exa"
+    assert status == "completed"
+    assert results[0].title == "Fresh source"
+    assert results[0].snippet == "Useful current context from Exa."
+    assert results[0].published_at == "2026-05-20T00:00:00.000Z"
 
 
 def test_chat_stream_creates_recoverable_messages(client, auth_headers):

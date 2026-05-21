@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.models import Conversation, Message, SearchResult as SearchResultModel, SearchRun, User, utc_now
 from app.services.ai_provider import stream_chat_response
+from app.services.attachment_service import ParsedAttachment, build_attachment_context
 from app.services.conversation_service import create_conversation, get_conversation_for_user, touch_conversation
+from app.services.quota_service import consume_message_quota
 from app.services.search_provider import search
 
 
@@ -21,7 +23,13 @@ async def stream_chat(
     client_message_id: str,
     conversation_id: str | None,
     search_mode: str,
+    attachments: list[ParsedAttachment] | None = None,
 ) -> AsyncIterator[str]:
+    attachment_context = build_attachment_context(attachments or [])
+    model_content = content
+    if attachment_context:
+        model_content = f"{content}\n\nAttachment contents:\n{attachment_context}"
+
     conversation = (
         get_conversation_for_user(db, user, conversation_id)
         if conversation_id
@@ -69,6 +77,22 @@ async def stream_chat(
         },
     )
 
+    if attachments:
+        yield sse(
+            "attachments.parsed",
+            {
+                "attachments": [
+                    {
+                        "filename": attachment.filename,
+                        "content_type": attachment.content_type,
+                        "kind": attachment.kind,
+                        "text": attachment.text,
+                    }
+                    for attachment in attachments
+                ]
+            },
+        )
+
     provider, search_status, results = await search(content, search_mode)
     if search_status == "completed":
         run = SearchRun(
@@ -98,7 +122,7 @@ async def stream_chat(
 
     full_content = ""
     try:
-        async for chunk in stream_chat_response(content, results):
+        async for chunk in stream_chat_response(model_content, results):
             full_content += chunk
             assistant_message.content = full_content
             assistant_message.updated_at = utc_now()
@@ -118,5 +142,5 @@ async def stream_chat(
     conversation.updated_at = utc_now()
     db.add_all([assistant_message, conversation])
     db.commit()
+    consume_message_quota(db, user, client_message_id)
     yield sse("message.completed", {"id": assistant_message.id, "content": full_content})
-

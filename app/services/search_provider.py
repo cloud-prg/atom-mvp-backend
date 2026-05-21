@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import httpx
+
 from app.core.config import settings
 
 
@@ -47,6 +49,37 @@ async def search(query: str, mode: str = "force") -> tuple[str, str, list[Search
             ],
         )
 
-    # Real Exa integration is intentionally isolated for later credentials.
-    return ("exa", "failed", [])
+    return await search_exa(query)
 
+
+async def search_exa(query: str) -> tuple[str, str, list[SearchResult]]:
+    headers = {
+        "x-api-key": settings.exa_api_key or "",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "query": query,
+        "type": "auto",
+        "numResults": 5,
+        "contents": {"text": True},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.post("https://api.exa.ai/search", headers=headers, json=payload)
+            response.raise_for_status()
+    except httpx.HTTPError:
+        return ("exa", "failed", [])
+
+    data = response.json()
+    results = [
+        SearchResult(
+            title=item.get("title") or item.get("url") or "Untitled source",
+            url=item.get("url") or "",
+            snippet=(item.get("text") or item.get("summary") or "").strip(),
+            source="exa",
+            published_at=item.get("publishedDate"),
+        )
+        for item in data.get("results", [])
+        if item.get("url")
+    ]
+    return ("exa", "completed", results)

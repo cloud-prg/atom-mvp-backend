@@ -83,12 +83,14 @@ class ChatStreamIn(BaseModel):
     content: str = Field(min_length=1)
     client_message_id: str = Field(min_length=1, max_length=120)
     search_mode: str = Field(default="off", pattern="^(off|auto|force)$")
+    network_search: bool | None = None
 
 
 class SearchIn(BaseModel):
     query: str = Field(min_length=1)
     mode: str = Field(default="force", pattern="^(off|auto|force)$")
     conversation_id: str | None = None
+    network_search: bool | None = None
 
 
 class SearchResultOut(BaseModel):

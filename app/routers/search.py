@@ -10,10 +10,10 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 @router.post("", response_model=SearchOut)
 async def search_route(payload: SearchIn, _user: User = Depends(get_current_user)) -> SearchOut:
-    provider, status, results = await search(payload.query, payload.mode)
+    mode = "force" if payload.network_search else payload.mode
+    provider, status, results = await search(payload.query, mode)
     return SearchOut(
         provider=provider,
         status=status,
         results=[SearchResultOut(**result.__dict__) for result in results],
     )
-
