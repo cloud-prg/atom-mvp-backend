@@ -34,18 +34,100 @@
         }
       }
     },
-    "/api/auth/login": {
+    "/api/auth/admin/login": {
       "post": {
         "tags": [
           "auth"
         ],
-        "summary": "Login",
-        "operationId": "login_api_auth_login_post",
+        "summary": "Admin Login",
+        "operationId": "admin_login_api_auth_admin_login_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/email/code": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request Email Verification",
+        "operationId": "request_email_verification_api_auth_email_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationRequestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/email/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify Email",
+        "operationId": "verify_email_api_auth_email_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerifyIn"
               }
             }
           },
@@ -161,6 +243,104 @@
                 "schema": {
                   "$ref": "#/components/schemas/UserOut"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth/github/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Github Oauth Login",
+        "operationId": "github_oauth_login_api_auth_oauth_github_login_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth/github/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Github Oauth Callback",
+        "operationId": "github_oauth_callback_api_auth_oauth_github_callback_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -344,12 +524,134 @@
           }
         }
       },
+      "patch": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Update",
+        "operationId": "update_api_conversations__conversation_id__patch",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "conversations"
         ],
         "summary": "Destroy",
         "operationId": "destroy_api_conversations__conversation_id__delete",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{conversation_id}/clear-context": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Clear Context",
+        "operationId": "clear_context_api_conversations__conversation_id__clear_context_post",
         "parameters": [
           {
             "name": "conversation_id",
@@ -584,6 +886,55 @@
         }
       }
     },
+    "/api/quotas/me": {
+      "get": {
+        "tags": [
+          "quotas"
+        ],
+        "summary": "Me Quota",
+        "operationId": "me_quota_api_quotas_me_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search": {
       "post": {
         "tags": [
@@ -732,6 +1083,74 @@
         ],
         "title": "ConversationOut"
       },
+      "ConversationUpdate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "ConversationUpdate"
+      },
+      "EmailVerificationRequestIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "EmailVerificationRequestIn"
+      },
+      "EmailVerificationRequestOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "title": "Expires In Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "expires_in_seconds"
+        ],
+        "title": "EmailVerificationRequestOut"
+      },
+      "EmailVerifyIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 6,
+            "minLength": 6,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "code"
+        ],
+        "title": "EmailVerifyIn"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -747,22 +1166,23 @@
       },
       "LoginIn": {
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "nickname": {
+          "username": {
             "type": "string",
             "maxLength": 120,
             "minLength": 1,
-            "title": "Nickname"
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Password"
           }
         },
         "type": "object",
         "required": [
-          "email",
-          "nickname"
+          "username",
+          "password"
         ],
         "title": "LoginIn"
       },
@@ -870,6 +1290,29 @@
           "updated_at"
         ],
         "title": "MessageOut"
+      },
+      "QuotaOut": {
+        "properties": {
+          "remaining_messages": {
+            "type": "integer",
+            "title": "Remaining Messages"
+          },
+          "granted_messages": {
+            "type": "integer",
+            "title": "Granted Messages"
+          },
+          "used_messages": {
+            "type": "integer",
+            "title": "Used Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remaining_messages",
+          "granted_messages",
+          "used_messages"
+        ],
+        "title": "QuotaOut"
       },
       "SearchIn": {
         "properties": {
@@ -1037,11 +1480,5 @@
         "title": "ValidationError"
       }
     }
-  },
-  "servers": [
-    {
-      "url": "http://127.0.0.1:8000",
-      "description": "Local backend"
-    }
-  ]
+  }
 }
