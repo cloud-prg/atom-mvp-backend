@@ -85,15 +85,15 @@ After GitHub authorizes the user, the backend creates or reuses a local user by 
 For production, set:
 
 ```env
-AUTH_REDIRECT_BASE_URL=http://atomApi.jiujiuware.com
-FRONTEND_AUTH_CALLBACK_URL=http://atomApi.jiujiuware.com/auth/callback
-BACKEND_CORS_ORIGINS=http://atomApi.jiujiuware.com
+AUTH_REDIRECT_BASE_URL=http://atom.jiujiuwarehouse.com
+FRONTEND_AUTH_CALLBACK_URL=http://atom.jiujiuwarehouse.com/auth/callback
+BACKEND_CORS_ORIGINS=http://atom.jiujiuwarehouse.com
 ```
 
 Then configure the production GitHub OAuth App callback URL as:
 
 ```text
-http://atomApi.jiujiuware.com/api/auth/oauth/github/callback
+http://atom.jiujiuwarehouse.com/api/auth/oauth/github/callback
 ```
 
 ## Tests
