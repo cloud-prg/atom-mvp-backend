@@ -13,13 +13,33 @@ class UserOut(BaseModel):
 
 
 class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1, max_length=120)
+
+
+class EmailVerifyIn(BaseModel):
     email: EmailStr
-    nickname: str = Field(min_length=1, max_length=120)
+    code: str = Field(min_length=6, max_length=6)
+
+
+class EmailVerificationRequestIn(BaseModel):
+    email: EmailStr
+
+
+class EmailVerificationRequestOut(BaseModel):
+    ok: bool
+    expires_in_seconds: int
 
 
 class LoginOut(BaseModel):
     token: str
     user: UserOut
+
+
+class QuotaOut(BaseModel):
+    remaining_messages: int
+    granted_messages: int
+    used_messages: int
 
 
 class ConversationCreate(BaseModel):
