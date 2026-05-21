@@ -116,7 +116,6 @@ def login_admin_user(db: Session, username: str, password: str) -> tuple[str, Us
         user = User(email=email, nickname="admin")
         db.add(user)
         db.flush()
-    ensure_signup_quota(db, user)
     token = build_session_for_user(db, user)
     return token, user
 

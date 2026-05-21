@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     github_client_secret: str | None = None
     auth_redirect_base_url: str = "http://127.0.0.1:8000"
     frontend_auth_callback_url: str = "http://127.0.0.1:5173/auth/callback"
-    signup_message_quota: int = 3
+    signup_message_quota: int = 6
     email_verification_ttl_minutes: int = 10
     allowed_email_domain: str = "gmail.com"
     resend_api_key: str | None = None

@@ -1,5 +1,5 @@
 from app.routers import auth as auth_router
-from app.models import EmailVerificationCode
+from app.models import EmailVerificationCode, User, UserQuota
 from app.services.auth_service import create_oauth_state, hash_verification_code
 
 
@@ -42,6 +42,23 @@ def test_admin_login_and_me(client):
     me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["email"] == "admin@local.atom"
+
+
+def test_admin_login_does_not_create_message_quota(client, db_session):
+    login = admin_login(client)
+    assert login.status_code == 200
+    token = login.json()["token"]
+
+    quota = client.get("/api/quotas/me", headers={"Authorization": f"Bearer {token}"})
+    admin = db_session.query(User).filter_by(email="admin@local.atom").one()
+
+    assert quota.status_code == 200
+    assert quota.json() == {
+        "remaining_messages": 999999,
+        "granted_messages": 999999,
+        "used_messages": 0,
+    }
+    assert db_session.get(UserQuota, admin.id) is None
 
 
 def test_email_code_login_existing_user_and_me(client, db_session):
@@ -157,8 +174,8 @@ def test_new_user_gets_signup_message_quota(client, db_session):
 
     assert quota.status_code == 200
     assert quota.json() == {
-        "remaining_messages": 3,
-        "granted_messages": 3,
+        "remaining_messages": 6,
+        "granted_messages": 6,
         "used_messages": 0,
     }
 
@@ -179,8 +196,35 @@ def test_chat_stream_consumes_message_quota(client, db_session):
 
     quota = client.get("/api/quotas/me", headers=headers)
     assert quota.status_code == 200
-    assert quota.json()["remaining_messages"] == 2
+    assert quota.json()["remaining_messages"] == 5
     assert quota.json()["used_messages"] == 1
+
+
+def test_chat_stream_does_not_consume_message_quota_when_response_fails(client, db_session, monkeypatch):
+    async def failing_stream_chat_response(prompt, search_results):
+        raise RuntimeError("provider failed")
+        yield ""
+
+    monkeypatch.setattr("app.services.chat_service.stream_chat_response", failing_stream_chat_response)
+    login = email_login(client, db_session, "failed-quota@gmail.com")
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+
+    with client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"content": "hello quota", "client_message_id": "quota-failed-1", "search_mode": "off"},
+        headers=headers,
+    ) as response:
+        assert response.status_code == 200
+        text = "".join(response.iter_text())
+        assert "message.interrupted" in text
+        assert "message.completed" not in text
+
+    quota = client.get("/api/quotas/me", headers=headers)
+    assert quota.status_code == 200
+    assert quota.json()["remaining_messages"] == 6
+    assert quota.json()["used_messages"] == 0
 
 
 def test_chat_stream_rejects_when_message_quota_exhausted(client, db_session):
@@ -188,7 +232,7 @@ def test_chat_stream_rejects_when_message_quota_exhausted(client, db_session):
     assert login.status_code == 200
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
 
-    for index in range(3):
+    for index in range(6):
         with client.stream(
             "POST",
             "/api/chat/stream",
@@ -200,12 +244,31 @@ def test_chat_stream_rejects_when_message_quota_exhausted(client, db_session):
 
     exhausted = client.post(
         "/api/chat/stream",
-        json={"content": "one more", "client_message_id": "quota-limit-4", "search_mode": "off"},
+        json={"content": "one more", "client_message_id": "quota-limit-7", "search_mode": "off"},
         headers=headers,
     )
 
     assert exhausted.status_code == 402
     assert exhausted.json()["detail"] == "Message quota exhausted"
+
+
+def test_admin_chat_stream_is_not_limited_by_message_quota(client, db_session):
+    login = admin_login(client)
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+
+    for index in range(7):
+        with client.stream(
+            "POST",
+            "/api/chat/stream",
+            json={"content": f"admin quota message {index}", "client_message_id": f"admin-quota-{index}", "search_mode": "off"},
+            headers=headers,
+        ) as response:
+            assert response.status_code == 200
+            assert "message.completed" in "".join(response.iter_text())
+
+    admin = db_session.query(User).filter_by(email="admin@local.atom").one()
+    assert db_session.get(UserQuota, admin.id) is None
 
 
 def test_github_oauth_callback_rejects_invalid_state(client, monkeypatch):

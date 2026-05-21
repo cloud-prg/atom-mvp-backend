@@ -9,7 +9,26 @@ class MessageQuotaExhausted(Exception):
     pass
 
 
+UNLIMITED_MESSAGE_QUOTA_DISPLAY = 999999
+
+
+def is_unlimited_quota_user(user: User) -> bool:
+    return user.email == "admin@local.atom"
+
+
+def unlimited_message_quota(user: User) -> UserQuota:
+    return UserQuota(
+        user_id=user.id,
+        remaining_messages=UNLIMITED_MESSAGE_QUOTA_DISPLAY,
+        granted_messages=UNLIMITED_MESSAGE_QUOTA_DISPLAY,
+        used_messages=0,
+    )
+
+
 def ensure_signup_quota(db: Session, user: User) -> UserQuota:
+    if is_unlimited_quota_user(user):
+        raise ValueError("Unlimited quota users do not have message quotas")
+
     quota = db.get(UserQuota, user.id)
     if quota:
         return quota
@@ -37,13 +56,31 @@ def ensure_signup_quota(db: Session, user: User) -> UserQuota:
 
 
 def get_user_quota(db: Session, user: User) -> UserQuota:
+    if is_unlimited_quota_user(user):
+        return unlimited_message_quota(user)
+
     quota = ensure_signup_quota(db, user)
     db.commit()
     db.refresh(quota)
     return quota
 
 
+def ensure_available_message_quota(db: Session, user: User) -> UserQuota:
+    if is_unlimited_quota_user(user):
+        return unlimited_message_quota(user)
+
+    quota = ensure_signup_quota(db, user)
+    db.commit()
+    db.refresh(quota)
+    if quota.remaining_messages < 1:
+        raise MessageQuotaExhausted
+    return quota
+
+
 def consume_message_quota(db: Session, user: User, request_id: str) -> UserQuota:
+    if is_unlimited_quota_user(user):
+        return unlimited_message_quota(user)
+
     ensure_signup_quota(db, user)
     result = db.execute(
         update(UserQuota)
@@ -79,6 +116,9 @@ def consume_message_quota(db: Session, user: User, request_id: str) -> UserQuota
 
 
 def refund_message_quota(db: Session, user: User, request_id: str, reason: str = "chat_stream_failed") -> UserQuota:
+    if is_unlimited_quota_user(user):
+        return unlimited_message_quota(user)
+
     ensure_signup_quota(db, user)
     quota = db.get(UserQuota, user.id)
     if quota is None:
